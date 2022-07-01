@@ -1,4 +1,4 @@
-package dlcore
+package twitter
 
 import (
     "encoding/json"
@@ -6,16 +6,15 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
+    "errors"
 )
 
-func Twitter(url string) (TwitterVideo, error) {
-    var video TwitterVideo
-    var videoFormats []TwitterFormat
+func getGuestToken() (string, error) {
     var guestToken TwitterGuestToken
 
     guestTokenReq, err := http.NewRequest("POST", "https://api.twitter.com/1.1/guest/activate.json", nil)
     if err != nil {
-        return TwitterVideo{}, fail
+        return "", errors.New("Failed to request guest token")
 
     }
 
@@ -24,29 +23,57 @@ func Twitter(url string) (TwitterVideo, error) {
     guestTokenClient := &http.Client{}
     g, err := guestTokenClient.Do(guestTokenReq)
     if err != nil || g.StatusCode != 200 {
-        return TwitterVideo{}, fail
+        return "", errors.New("Failed to request guest token")
 
     }
 
-    token, _ := ioutil.ReadAll(g.Body)
+    token, err := ioutil.ReadAll(g.Body)
+    if err != nil {
+        return "", err
+
+    }
+
     json.Unmarshal(token, &guestToken)
-    
+
+    return guestToken.Token, nil
+}
+
+func GetFormats(url string) ([]TwitterFormat, error) {
+    video, err := GetVideo(url)
+    if err != nil {
+        return []TwitterFormat{}, err
+
+    }
+
+    return video.Formats, nil
+}
+
+func GetVideo(url string) (TwitterVideo, error) {
+    var video TwitterVideo
+    var videoFormats []TwitterFormat
+
+    token, err := getGuestToken()
+    if err != nil {
+        return TwitterVideo{}, err
+
+    }
+        
     videoReq, err := http.NewRequest("GET", `https://twitter.com/i/api/graphql/LJ_TjoWGgNTXCl7gfx4Njw/TweetDetail?variables=%7B%22focalTweetId%22%3A%22` + strings.Split(url, "/")[5] + `%22%2C%22with_rux_injections%22%3Afalse%2C%22includePromotedContent%22%3Atrue%2C%22withCommunity%22%3Atrue%2C%22withQuickPromoteEligibilityTweetFields%22%3Atrue%2C%22withBirdwatchNotes%22%3Afalse%2C%22withSuperFollowsUserFields%22%3Atrue%2C%22withDownvotePerspective%22%3Afalse%2C%22withReactionsMetadata%22%3Afalse%2C%22withReactionsPerspective%22%3Afalse%2C%22withSuperFollowsTweetFields%22%3Atrue%2C%22withVoice%22%3Atrue%2C%22withV2Timeline%22%3Afalse%2C%22__fs_dont_mention_me_view_api_enabled%22%3Afalse%2C%22__fs_interactive_text_enabled%22%3Atrue%2C%22__fs_responsive_web_uc_gql_enabled%22%3Afalse%7D`, nil)
     if err != nil {
-        return TwitterVideo{}, fail
+        return TwitterVideo{}, errors.New("Failed to request video information")
 
     }
 
     videoReq.Header = http.Header {
         "Host": []string{"twitter.com"},
         "Authorization": []string{"Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"},
-        "X-Guest-Token": []string{guestToken.Token},
+        "X-Guest-Token": []string{token},
     }
     
     videoClient := &http.Client{}
     v, err := videoClient.Do(videoReq)
     if err != nil || v.StatusCode != 200 {
-        return TwitterVideo{}, fail
+        return TwitterVideo{}, errors.New("Failed to request video information")
 
     }
 
@@ -54,7 +81,7 @@ func Twitter(url string) (TwitterVideo, error) {
     videoResponse := string(b)
 
     if !strings.Contains(string(videoResponse), `"variants":[`) {
-        return TwitterVideo{}, invalid
+        return TwitterVideo{}, errors.New("Invalid video information")
 
     }
 
@@ -75,15 +102,6 @@ func Twitter(url string) (TwitterVideo, error) {
     }
 
     video.Formats = videoFormats
+
     return video, nil
-}
-
-func (video *TwitterFormat) Download(filename string) error {
-    err := Download(video.URL, filename)
-    if err != nil {
-        return err
-
-    }
-
-    return nil
 }

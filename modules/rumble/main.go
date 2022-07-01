@@ -1,4 +1,4 @@
-package dlcore
+package rumble
 
 import (
     "net/http"
@@ -6,27 +6,48 @@ import (
     "io/ioutil"
     "strings"
     "fmt"
+    "errors"
 )
 
-func Rumble(url string) (RumbleVideo, error) {
+func GetFormats(url string) ([]RumbleVideoFormat, error) {
+    video, err := GetVideo(url)
+    if err != nil {
+        return []RumbleVideoFormat{}, err
+
+    }
+
+    return video.Formats, nil
+}
+
+func GetVideo(url string) (RumbleVideo, error) {
     var video RumbleVideo
 
-    v, err := http.Get(url)
+    idReq, err := http.Get(url)
     if err != nil {
-        return RumbleVideo{}, fail
+        return RumbleVideo{}, errors.New("Failed to get video ID")
 
     }
 
-    b, _ := ioutil.ReadAll(v.Body)
+    b, err := ioutil.ReadAll(idReq.Body)
+    if err != nil {
+        return RumbleVideo{}, err
+
+    }
+
     videoID := strings.Split(strings.Split(string(b), `"video":"`)[1], `"`)[0]
 
-    e, err := http.Get(`https://rumble.com/embedJS/u3/?request=video&ver=2&v=` + videoID +`&ext=%7B%22ad_count%22%3Anull%7D&ad_wt=9043`)
+    videoReq, err := http.Get(`https://rumble.com/embedJS/u3/?request=video&ver=2&v=` + videoID +`&ext=%7B%22ad_count%22%3Anull%7D&ad_wt=9043`)
     if err != nil {
-        return RumbleVideo{}, fail
+        return RumbleVideo{}, errors.New("Failed to get video ID")
 
     }
 
-    b, _ = ioutil.ReadAll(e.Body)
+    b, err = ioutil.ReadAll(videoReq.Body)
+    if err != nil {
+        return RumbleVideo{}, err
+
+    }
+
     json.Unmarshal(b, &video)
 
     raw := strings.ReplaceAll(fmt.Sprintf(`{"formats":[%v]}`, strings.Split(strings.Split(string(b), `"ua":{"mp4":{`)[1], `}},"i"`)[0]), `},"webm":{`, `,`)
@@ -48,14 +69,4 @@ func Rumble(url string) (RumbleVideo, error) {
     }
 
     return video, nil
-}
-
-func (video *RumbleVideoFormat) Download() error {
-    err := Download(video.URL, video.Title)
-    if err != nil {
-        return err
-
-    }
-
-    return nil
 }

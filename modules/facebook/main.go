@@ -1,4 +1,4 @@
-package dlcore
+package facebook
 
 import (
     "encoding/json"
@@ -6,14 +6,25 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
+    "errors"
 )
 
-func Facebook(url string) (FacebookVideo, error) {
+func GetFormats(url string) ([]FacebookVideoFormat, error) {
+    video, err := GetVideo(url)
+    if err != nil {
+        return []FacebookVideoFormat{}, err
+
+    }
+
+    return video.Formats, nil
+}
+
+func GetVideo(url string) (FacebookVideo, error) {
     var video FacebookVideo
 
     req, err := http.NewRequest("GET", url, nil)
     if err != nil {
-        return FacebookVideo{}, fail
+        return FacebookVideo{}, errors.New("Failed to get video information")
 
     }
     
@@ -22,7 +33,7 @@ func Facebook(url string) (FacebookVideo, error) {
     client := &http.Client{}
     r, err := client.Do(req)
     if err != nil || r.StatusCode != 200 {
-        return FacebookVideo{}, fail
+        return FacebookVideo{}, errors.New("Failed to get video information")
 
     }
 
@@ -30,7 +41,7 @@ func Facebook(url string) (FacebookVideo, error) {
     raw := string(b)
 
     if !strings.Contains(raw, `"representations":`) {
-        return FacebookVideo{}, invalid
+        return FacebookVideo{}, errors.New("Invalid video information")
 
     }
    
@@ -42,34 +53,4 @@ func Facebook(url string) (FacebookVideo, error) {
     json.Unmarshal(json.RawMessage(fmt.Sprintf(`{"formats":%v,"feedback":%v},"qualities":{%v},"author":%v,"title":%v}`, formats, feedback, qualities, author, title)), &video)
 
     return video, nil
-}
-
-func (video *FacebookVideoQualities) DownloadSD(filename string) error {
-    err := Download(video.SD, filename)
-    if err != nil {
-        return err
-
-    }
-
-    return nil
-}
-
-func (video *FacebookVideoQualities) DownloadHD(filename string) error {
-    err := Download(video.HD, filename)
-    if err != nil {
-        return err
-
-    }
-
-    return nil
-}
-
-func (video *FacebookVideoFormat) Download(filename string) error {
-    err := Download(video.URL, filename)
-    if err != nil {
-        return err
-
-    }
-
-    return nil
 }
