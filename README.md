@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="./assets/logo.png" width="480" />
+    <img src="./assets/logo.png" width="300" />
     <h3>A tool and core to download videos from your terminal</h3>
 </div>
 
