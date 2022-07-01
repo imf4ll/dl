@@ -22,7 +22,7 @@ Others:
 ```bash
 git clone https://github.com/z3oxs/dl
 cd dl/cli/
-go install
+make install
 ```
 
 &nbsp;
